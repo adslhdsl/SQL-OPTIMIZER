@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SQL Optimizer Agent — 프로젝트 해설</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #21262d;
+      --border: #30363d;
+      --accent: #58a6ff;
+      --accent2: #3fb950;
+      --accent3: #d2a8ff;
+      --accent4: #ffa657;
+      --accent5: #ff7b72;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --text-dim: #6e7681;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      line-height: 1.7;
+    }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(13,17,23,.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex; align-items: center; gap: 2rem;
+      height: 56px;
+    }
+    nav .logo { font-weight: 700; font-size: 1.1rem; color: var(--accent); white-space: nowrap; }
+    nav a { color: var(--text-muted); text-decoration: none; font-size: .875rem; transition: color .2s; }
+    nav a:hover { color: var(--text); }
+
+    /* ── Hero ── */
+    .hero {
+      text-align: center;
+      padding: 5rem 2rem 4rem;
+      background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(88,166,255,.15), transparent);
+    }
+    .hero h1 { font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 800; margin-bottom: 1rem; }
+    .hero h1 span { color: var(--accent); }
+    .hero p { color: var(--text-muted); font-size: 1.1rem; max-width: 640px; margin: 0 auto 2rem; }
+    .badge-row { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: center; }
+    .badge {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 99px; padding: .2rem .9rem; font-size: .8rem;
+      font-weight: 600; letter-spacing: .04em;
+    }
+    .badge.blue { border-color: var(--accent); color: var(--accent); }
+    .badge.green { border-color: var(--accent2); color: var(--accent2); }
+    .badge.purple { border-color: var(--accent3); color: var(--accent3); }
+    .badge.orange { border-color: var(--accent4); color: var(--accent4); }
+
+    /* ── Section ── */
+    section { padding: 4rem 2rem; max-width: 1100px; margin: 0 auto; }
+    section + section { border-top: 1px solid var(--border); }
+    h2 { font-size: 1.75rem; margin-bottom: .5rem; }
+    h2 .num { color: var(--accent3); font-size: 1rem; font-weight: 400; margin-right: .5rem; }
+    .sub { color: var(--text-muted); margin-bottom: 2.5rem; }
+
+    /* ── Cards ── */
+    .card-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.5rem;
+      transition: border-color .2s, transform .2s;
+    }
+    .card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .card .icon { font-size: 2rem; margin-bottom: .75rem; }
+    .card h3 { margin-bottom: .5rem; font-size: 1.05rem; }
+    .card p { color: var(--text-muted); font-size: .875rem; }
+
+    /* ── What is Agent ── */
+    .concept-grid { display: grid; gap: 1.5rem; grid-template-columns: 1fr 1fr; }
+    @media (max-width: 700px) { .concept-grid { grid-template-columns: 1fr; } }
+    .concept-box {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.5rem;
+    }
+    .concept-box h3 { margin-bottom: 1rem; display: flex; align-items: center; gap: .5rem; }
+    .concept-box ul { list-style: none; padding: 0; }
+    .concept-box li { padding: .4rem 0; color: var(--text-muted); font-size: .9rem; }
+    .concept-box li::before { content: "→ "; color: var(--accent); }
+
+    /* ── Architecture Diagram ── */
+    .arch-diagram {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 2.5rem 2rem;
+      overflow-x: auto;
+    }
+    .arch-row { display: flex; align-items: center; justify-content: center; gap: 0; flex-wrap: nowrap; }
+    .arch-node {
+      text-align: center; min-width: 120px; padding: 1rem .75rem;
+      border-radius: 10px; font-size: .82rem; font-weight: 600;
+      position: relative; flex-shrink: 0;
+    }
+    .arch-node .label { font-size: .72rem; font-weight: 400; color: var(--text-muted); margin-top: .3rem; }
+    .arch-arrow {
+      width: 48px; height: 2px; flex-shrink: 0;
+      position: relative; display: flex; align-items: center; justify-content: center;
+    }
+    .arch-arrow::before {
+      content: ''; display: block; height: 2px; width: 100%;
+      background: linear-gradient(90deg, var(--border), var(--accent));
+    }
+    .arch-arrow::after {
+      content: '▶'; position: absolute; right: -2px;
+      color: var(--accent); font-size: .7rem;
+    }
+    .node-user { background: rgba(255,123,114,.12); border: 1px solid var(--accent5); color: var(--accent5); }
+    .node-agent { background: rgba(88,166,255,.12); border: 1px solid var(--accent); color: var(--accent); }
+    .node-llm { background: rgba(210,168,255,.12); border: 1px solid var(--accent3); color: var(--accent3); }
+    .node-tool { background: rgba(63,185,80,.12); border: 1px solid var(--accent2); color: var(--accent2); }
+    .node-db { background: rgba(255,166,87,.12); border: 1px solid var(--accent4); color: var(--accent4); }
+
+    /* ── Agent Loop ── */
+    .loop-container {
+      display: flex; gap: 2rem; align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .loop-diagram {
+      flex: 0 0 320px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 2rem; position: relative;
+    }
+    .loop-step {
+      display: flex; align-items: flex-start; gap: 1rem;
+      padding: .875rem 1rem; border-radius: 10px;
+      background: var(--surface2); border: 1px solid var(--border);
+      margin-bottom: .75rem; cursor: pointer; transition: border-color .2s;
+      position: relative;
+    }
+    .loop-step.active { border-color: var(--accent); background: rgba(88,166,255,.08); }
+    .loop-step .step-num {
+      width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .8rem; font-weight: 700; background: var(--border);
+    }
+    .loop-step.active .step-num { background: var(--accent); color: #000; }
+    .loop-step .step-body h4 { font-size: .875rem; margin-bottom: .15rem; }
+    .loop-step .step-body p { font-size: .78rem; color: var(--text-muted); }
+    .loop-connector {
+      width: 2px; height: 18px; background: var(--border);
+      margin: 0 0 0 23px;
+    }
+    .loop-back {
+      border: 2px dashed var(--accent3); border-radius: 8px;
+      padding: .5rem .75rem; font-size: .8rem; color: var(--accent3);
+      text-align: center; margin-top: .5rem;
+    }
+    .loop-detail {
+      flex: 1; min-width: 280px;
+    }
+    .loop-detail .detail-card {
+      display: none;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.5rem;
+    }
+    .loop-detail .detail-card.active { display: block; }
+    .loop-detail h3 { margin-bottom: .75rem; }
+
+    /* ── Code block ── */
+    pre {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1.25rem;
+      overflow-x: auto; font-size: .82rem;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      line-height: 1.6;
+    }
+    .kw { color: #ff7b72; }
+    .fn { color: #d2a8ff; }
+    .str { color: #a5d6ff; }
+    .cm { color: #6e7681; font-style: italic; }
+    .var { color: #ffa657; }
+    .num { color: #79c0ff; }
+
+    /* ── Tools ── */
+    .tool-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+    .tool-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.25rem;
+      transition: border-color .2s;
+    }
+    .tool-card:hover { border-color: var(--accent2); }
+    .tool-card .tool-name {
+      font-family: monospace; font-size: .9rem; color: var(--accent2);
+      margin-bottom: .5rem; display: flex; align-items: center; gap: .5rem;
+    }
+    .tool-card .tool-desc { color: var(--text-muted); font-size: .82rem; margin-bottom: .75rem; }
+    .tool-card .tool-sql {
+      background: var(--surface2); border-radius: 6px;
+      padding: .4rem .6rem; font-size: .75rem; font-family: monospace;
+      color: var(--accent3); border: 1px solid var(--border);
+    }
+
+    /* ── Example walkthrough ── */
+    .walk-grid { display: grid; gap: 1px; background: var(--border); border-radius: 12px; overflow: hidden; }
+    .walk-step {
+      background: var(--surface); padding: 1.5rem;
+      display: grid; grid-template-columns: 40px 1fr; gap: 1.25rem; align-items: start;
+    }
+    .walk-step .ws-num {
+      width: 40px; height: 40px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: .95rem; flex-shrink: 0;
+    }
+    .ws1 .ws-num { background: rgba(255,123,114,.15); color: var(--accent5); border: 1px solid var(--accent5); }
+    .ws2 .ws-num { background: rgba(88,166,255,.15); color: var(--accent); border: 1px solid var(--accent); }
+    .ws3 .ws-num { background: rgba(210,168,255,.15); color: var(--accent3); border: 1px solid var(--accent3); }
+    .ws4 .ws-num { background: rgba(63,185,80,.15); color: var(--accent2); border: 1px solid var(--accent2); }
+    .ws5 .ws-num { background: rgba(255,166,87,.15); color: var(--accent4); border: 1px solid var(--accent4); }
+    .ws6 .ws-num { background: rgba(210,168,255,.15); color: var(--accent3); border: 1px solid var(--accent3); }
+    .ws7 .ws-num { background: rgba(63,185,80,.15); color: var(--accent2); border: 1px solid var(--accent2); }
+    .walk-step h3 { margin-bottom: .5rem; font-size: 1rem; }
+    .walk-step p { color: var(--text-muted); font-size: .875rem; margin-bottom: .75rem; }
+
+    /* ── Comparison table ── */
+    table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+    th { background: var(--surface2); padding: .75rem 1rem; text-align: left; border-bottom: 2px solid var(--border); }
+    td { padding: .75rem 1rem; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface2); }
+    .tag { display: inline-block; padding: .15rem .5rem; border-radius: 4px; font-size: .75rem; font-weight: 600; }
+    .tag.g { background: rgba(63,185,80,.15); color: var(--accent2); }
+    .tag.b { background: rgba(88,166,255,.15); color: var(--accent); }
+    .tag.p { background: rgba(210,168,255,.15); color: var(--accent3); }
+
+    /* ── MCP section ── */
+    .mcp-split { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 700px) { .mcp-split { grid-template-columns: 1fr; } }
+
+    /* ── Summary table ── */
+    .summary-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+    .summary-cell {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1rem;
+      text-align: center;
+    }
+    .summary-cell .big { font-size: 2rem; margin-bottom: .25rem; }
+    .summary-cell .label { font-size: .8rem; color: var(--text-muted); }
+
+    /* ── Animations ── */
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+    @keyframes slide-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .detail-card.active { animation: slide-in .2s ease; }
+
+    /* ── Highlight box ── */
+    .highlight-box {
+      background: rgba(88,166,255,.07); border: 1px solid rgba(88,166,255,.3);
+      border-radius: 10px; padding: 1rem 1.25rem; margin: 1rem 0;
+    }
+    .highlight-box p { color: var(--text); font-size: .875rem; }
+    .highlight-box strong { color: var(--accent); }
+
+    /* ── Flow SVG ── */
+    .flow-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; overflow-x: auto; }
+    .flow-wrap svg { display: block; min-width: 700px; margin: 0 auto; }
+
+    /* ── footer ── */
+    footer {
+      border-top: 1px solid var(--border); text-align: center;
+      padding: 2rem; color: var(--text-dim); font-size: .82rem;
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="logo">🗄 SQL Optimizer Agent</div>
+  <a href="#what-is-agent">에이전트란?</a>
+  <a href="#architecture">아키텍처</a>
+  <a href="#agent-loop">에이전트 루프</a>
+  <a href="#tools">도구 시스템</a>
+  <a href="#example">동작 예시</a>
+  <a href="#summary">핵심 정리</a>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <h1>SQL Optimizer <span>Agent</span></h1>
+  <p>AI가 SQL 쿼리를 스스로 분석하고 최적화 방안을 제안하는<br/>에이전트 기반 시스템</p>
+  <div class="badge-row">
+    <span class="badge blue">Gemini 2.5 Flash</span>
+    <span class="badge green">SQLite</span>
+    <span class="badge purple">Agent Loop</span>
+    <span class="badge orange">Tool Use</span>
+    <span class="badge blue">MCP Server</span>
+    <span class="badge green">Python</span>
+  </div>
+</div>
+
+<!-- ────────────────────────────────────────────── -->
+<!-- 1. WHAT IS AN AGENT -->
+<!-- ────────────────────────────────────────────── -->
+<section id="what-is-agent">
+  <h2><span class="num">01</span>에이전트(Agent)란 무엇인가?</h2>
+  <p class="sub">단순 AI 호출과 에이전트의 핵심 차이를 이해합니다.</p>
+
+  <div class="concept-grid">
+    <div class="concept-box">
+      <h3>🤖 단순 AI 호출 (1-shot)</h3>
+      <ul>
+        <li>사용자가 질문을 입력</li>
+        <li>LLM이 한 번 답변을 생성</li>
+        <li>추가 정보 수집 불가</li>
+        <li>답변 품질이 입력에 전적으로 의존</li>
+        <li>외부 시스템과 상호작용 불가</li>
+      </ul>
+    </div>
+    <div class="concept-box" style="border-color: var(--accent);">
+      <h3 style="color: var(--accent);">🧠 에이전트 (Agent)</h3>
+      <ul>
+        <li>목표만 주어지면 스스로 계획 수립</li>
+        <li>필요한 정보를 도구(Tool)를 통해 직접 수집</li>
+        <li>수집한 정보를 바탕으로 추가 추론</li>
+        <li>외부 시스템 (DB, API, 파일 등) 과 상호작용</li>
+        <li>충분한 정보가 모이면 최종 답변 생성</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="highlight-box" style="margin-top: 1.5rem;">
+    <p><strong>핵심 개념:</strong> 에이전트는 LLM + 도구 + 루프(반복)의 조합입니다.
+    LLM이 단순히 답을 생성하는 것을 넘어, <strong>"지금 무엇을 더 알아야 하는가?"</strong>를
+    스스로 판단하고 도구를 호출하여 정보를 수집한 뒤, 그 결과를 바탕으로 다시 추론합니다.</p>
+  </div>
+
+  <div class="card-grid" style="margin-top: 1.5rem;">
+    <div class="card">
+      <div class="icon">🔄</div>
+      <h3>반복(Loop)</h3>
+      <p>LLM은 도구가 필요하지 않다고 판단할 때까지 반복적으로 도구를 호출하고 추론합니다. SQL Optimizer는 최대 10회 반복합니다.</p>
+    </div>
+    <div class="card">
+      <div class="icon">🛠️</div>
+      <h3>도구 사용(Tool Use)</h3>
+      <p>LLM이 직접 실행할 수 없는 작업 (DB 조회, API 호출 등)을 코드로 구현된 함수를 통해 수행합니다.</p>
+    </div>
+    <div class="card">
+      <div class="icon">💬</div>
+      <h3>대화 이력(Context)</h3>
+      <p>이전 도구 호출과 그 결과가 모두 누적되어 다음 LLM 호출에 전달됩니다. 에이전트의 "기억"입니다.</p>
+    </div>
+    <div class="card">
+      <div class="icon">🎯</div>
+      <h3>자율 판단(Autonomy)</h3>
+      <p>어떤 도구를 어떤 순서로 호출할지 LLM이 스스로 결정합니다. 코드에는 하드코딩되어 있지 않습니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────── -->
+<!-- 2. PROJECT OVERVIEW -->
+<!-- ────────────────────────────────────────────── -->
+<section id="overview">
+  <h2><span class="num">02</span>프로젝트 개요</h2>
+  <p class="sub">SQL Optimizer Agent는 무엇을 하는 프로젝트인가?</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="icon">🎯</div>
+      <h3>목적</h3>
+      <p>사용자가 제공한 SQL 쿼리와 실행 계획(EXPLAIN)을 AI가 분석하여, 인덱스 추가·쿼리 재작성 등 구체적인 최적화 방안을 한국어로 제안합니다.</p>
+    </div>
+    <div class="card">
+      <div class="icon">🔐</div>
+      <h3>보안 설계</h3>
+      <p>실제 데이터는 절대 조회하지 않습니다. 스키마, 인덱스, 행 개수 등 <strong>메타데이터만</strong> 수집합니다. 실행 계획은 사람이 직접 실행해서 붙여넣습니다.</p>
+    </div>
+    <div class="card">
+      <div class="icon">🧩</div>
+      <h3>구성</h3>
+      <p><code>agent.py</code> (메인 에이전트) + <code>mcp_server.py</code> (Claude Code 연동) + <code>setup_db.py</code> (실습용 샘플 DB)</p>
+    </div>
+    <div class="card">
+      <div class="icon">📚</div>
+      <h3>학습 목적</h3>
+      <p>이 프로젝트는 에이전트의 핵심 패턴인 <strong>도구 호출 루프</strong>, <strong>대화 이력 관리</strong>, <strong>자율 판단</strong>을 명확하게 보여주기 위해 설계되었습니다.</p>
+    </div>
+  </div>
+
+  <div style="margin-top: 2rem;">
+    <h3 style="margin-bottom: 1rem;">파일 구조</h3>
+    <pre><span class="cm">sql-optimizer/</span>
+├── <span class="var">agent.py</span>        <span class="cm"># 메인 에이전트 — Gemini 호출 + 도구 루프</span>
+├── <span class="var">mcp_server.py</span>   <span class="cm"># MCP 서버 — Claude Code 연동용</span>
+├── <span class="var">setup_db.py</span>     <span class="cm"># 샘플 DB 생성 (인덱스 없는 의도적 비효율 스키마)</span>
+├── <span class="var">sample.db</span>       <span class="cm"># SQLite DB — customers(1000건) + products(200건) + orders(10000건)</span>
+├── <span class="var">requirements.txt</span> <span class="cm"># google-genai, mcp</span>
+└── <span class="var">.env</span>            <span class="cm"># GEMINI_API_KEY</span></pre>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────── -->
+<!-- 3. ARCHITECTURE -->
+<!-- ────────────────────────────────────────────── -->
+<section id="architecture">
+  <h2><span class="num">03</span>전체 아키텍처</h2>
+  <p class="sub">사용자 입력이 최적화 제안으로 변환되기까지의 전체 흐름</p>
+
+  <div class="flow-wrap">
+    <svg viewBox="0 0 820 320" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Background lanes -->
+      <rect x="0" y="0" width="820" height="320" fill="#161b22" rx="0"/>
+      <!-- Lane labels -->
+      <text x="16" y="24" fill="#6e7681" font-size="11" font-family="monospace">사용자</text>
+      <text x="16" y="134" fill="#6e7681" font-size="11" font-family="monospace">agent.py</text>
+      <text x="16" y="214" fill="#6e7681" font-size="11" font-family="monospace">Gemini 2.5</text>
+      <text x="16" y="294" fill="#6e7681" font-size="11" font-family="monospace">SQLite DB</text>
+      <!-- Horizontal lanes -->
+      <line x1="80" y1="55" x2="820" y2="55" stroke="#30363d" stroke-dasharray="4,4"/>
+      <line x1="80" y1="155" x2="820" y2="155" stroke="#30363d" stroke-dasharray="4,4"/>
+      <line x1="80" y1="245" x2="820" y2="245" stroke="#30363d" stroke-dasharray="4,4"/>
+
+      <!-- Step 1: User provides SQL + EXPLAIN -->
+      <rect x="90" y="16" width="130" height="52" rx="8" fill="rgba(255,123,114,0.12)" stroke="#ff7b72"/>
+      <text x="155" y="37" text-anchor="middle" fill="#ff7b72" font-size="12" font-weight="700">SQL 쿼리</text>
+      <text x="155" y="54" text-anchor="middle" fill="#ff7b72" font-size="11">+ EXPLAIN 결과</text>
+
+      <!-- Arrow down to agent -->
+      <line x1="155" y1="68" x2="155" y2="110" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="165" y="94" fill="#8b949e" font-size="10">run_agent()</text>
+
+      <!-- Step 2: agent.py receives -->
+      <rect x="90" y="110" width="130" height="52" rx="8" fill="rgba(88,166,255,0.12)" stroke="#58a6ff"/>
+      <text x="155" y="131" text-anchor="middle" fill="#58a6ff" font-size="12" font-weight="700">에이전트 초기화</text>
+      <text x="155" y="148" text-anchor="middle" fill="#58a6ff" font-size="10">contents 구성</text>
+
+      <!-- Arrow right to Gemini (first call) -->
+      <line x1="220" y1="136" x2="280" y2="136" stroke="#d2a8ff" stroke-width="1.5" marker-end="url(#arr2)"/>
+      <text x="250" y="128" text-anchor="middle" fill="#8b949e" font-size="10">API 호출</text>
+
+      <!-- Step 3: Gemini thinks -->
+      <rect x="280" y="110" width="130" height="52" rx="8" fill="rgba(210,168,255,0.12)" stroke="#d2a8ff"/>
+      <text x="345" y="131" text-anchor="middle" fill="#d2a8ff" font-size="12" font-weight="700">Gemini 추론</text>
+      <text x="345" y="148" text-anchor="middle" fill="#d2a8ff" font-size="10">도구 필요 여부 판단</text>
+
+      <!-- Arrow down: function_call -->
+      <line x1="345" y1="162" x2="345" y2="195" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arr3)"/>
+      <text x="360" y="184" fill="#8b949e" font-size="10">function_call</text>
+
+      <!-- Step 4: tool execution (agent) -->
+      <rect x="280" y="195" width="130" height="52" rx="8" fill="rgba(63,185,80,0.12)" stroke="#3fb950"/>
+      <text x="345" y="216" text-anchor="middle" fill="#3fb950" font-size="12" font-weight="700">도구 실행</text>
+      <text x="345" y="233" text-anchor="middle" fill="#3fb950" font-size="10">agent.py → TOOL_MAP</text>
+
+      <!-- Arrow down to DB -->
+      <line x1="345" y1="247" x2="345" y2="270" stroke="#ffa657" stroke-width="1.5" marker-end="url(#arr4)"/>
+
+      <!-- Step 5: SQLite -->
+      <rect x="280" y="270" width="130" height="38" rx="8" fill="rgba(255,166,87,0.12)" stroke="#ffa657"/>
+      <text x="345" y="291" text-anchor="middle" fill="#ffa657" font-size="11" font-weight="700">SQLite 메타데이터</text>
+      <text x="345" y="304" text-anchor="middle" fill="#ffa657" font-size="10">PRAGMA / COUNT(*)</text>
+
+      <!-- Arrow back up: result -->
+      <line x1="410" y1="289" x2="460" y2="289" stroke="#ffa657" stroke-width="1.5"/>
+      <line x1="460" y1="289" x2="460" y2="216" stroke="#ffa657" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="435" y="282" text-anchor="middle" fill="#8b949e" font-size="10">결과 반환</text>
+
+      <!-- Step 6: contents append + loop -->
+      <rect x="470" y="110" width="130" height="52" rx="8" fill="rgba(88,166,255,0.12)" stroke="#58a6ff" stroke-dasharray="4,3"/>
+      <text x="535" y="131" text-anchor="middle" fill="#58a6ff" font-size="12" font-weight="700">contents 누적</text>
+      <text x="535" y="148" text-anchor="middle" fill="#58a6ff" font-size="10">도구 결과 추가</text>
+
+      <!-- Arrow from tool exec to contents -->
+      <line x1="410" y1="216" x2="470" y2="136" stroke="#58a6ff" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr)"/>
+
+      <!-- Loop arrow back to Gemini -->
+      <path d="M535 110 C535 78 345 78 345 110" stroke="#d2a8ff" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr2)" fill="none"/>
+      <text x="440" y="68" text-anchor="middle" fill="#d2a8ff" font-size="10">루프 반복 (최대 10회)</text>
+
+      <!-- Step 7: Final answer -->
+      <rect x="660" y="110" width="140" height="52" rx="8" fill="rgba(63,185,80,0.12)" stroke="#3fb950"/>
+      <text x="730" y="131" text-anchor="middle" fill="#3fb950" font-size="12" font-weight="700">최종 답변 생성</text>
+      <text x="730" y="148" text-anchor="middle" fill="#3fb950" font-size="10">도구 호출 없을 때</text>
+
+      <!-- Arrow from loop to final -->
+      <line x1="600" y1="136" x2="660" y2="136" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arr3)"/>
+
+      <!-- Arrow final to user -->
+      <line x1="730" y1="110" x2="730" y2="68" stroke="#ff7b72" stroke-width="1.5" marker-end="url(#arr5)"/>
+      <text x="745" y="94" fill="#8b949e" font-size="10">출력</text>
+
+      <!-- User receives -->
+      <rect x="660" y="16" width="140" height="52" rx="8" fill="rgba(255,123,114,0.12)" stroke="#ff7b72"/>
+      <text x="730" y="37" text-anchor="middle" fill="#ff7b72" font-size="12" font-weight="700">최적화 제안</text>
+      <text x="730" y="54" text-anchor="middle" fill="#ff7b72" font-size="10">한국어 분석 결과</text>
+
+      <!-- Arrow defs -->
+      <defs>
+        <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#58a6ff"/>
+        </marker>
+        <marker id="arr2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#d2a8ff"/>
+        </marker>
+        <marker id="arr3" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#3fb950"/>
+        </marker>
+        <marker id="arr4" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#ffa657"/>
+        </marker>
+        <marker id="arr5" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#ff7b72"/>
+        </marker>
+      </defs>
+    </svg>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────── -->
+<!-- 4. AGENT LOOP -->
+<!-- ────────────────────────────────────────────── -->
+<section id="agent-loop">
+  <h2><span class="num">04</span>에이전트 루프 상세</h2>
+  <p class="sub">agent.py 내 <code>run_agent()</code> 함수의 내부 동작을 단계별로 살펴봅니다.<br/>
+  각 단계를 클릭하면 상세 설명을 볼 수 있습니다.</p>
+
+  <div class="loop-container">
+    <!-- Left: step list -->
+    <div class="loop-diagram">
+      <div class="loop-step active" onclick="selectStep(0)" id="ls0">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h4>초기 컨텍스트 구성</h4>
+          <p>SQL 쿼리 + EXPLAIN 결과를 contents에 담는다</p>
+        </div>
+      </div>
+      <div class="loop-connector"></div>
+      <div class="loop-step" onclick="selectStep(1)" id="ls1">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h4>Gemini API 호출</h4>
+          <p>현재 contents + 4개 도구 정보 전달</p>
+        </div>
+      </div>
+      <div class="loop-connector"></div>
+      <div class="loop-step" onclick="selectStep(2)" id="ls2">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h4>응답 분석</h4>
+          <p>function_call 포함 여부 확인</p>
+        </div>
+      </div>
+      <div class="loop-connector"></div>
+      <div class="loop-step" onclick="selectStep(3)" id="ls3">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h4>도구 실행</h4>
+          <p>TOOL_MAP으로 함수를 찾아 실행</p>
+        </div>
+      </div>
+      <div class="loop-connector"></div>
+      <div class="loop-step" onclick="selectStep(4)" id="ls4">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <h4>결과 누적</h4>
+          <p>도구 결과를 contents에 추가</p>
+        </div>
+      </div>
+      <div class="loop-connector"></div>
+      <div class="loop-step" onclick="selectStep(5)" id="ls5">
+        <div class="step-num">6</div>
+        <div class="step-body">
+          <h4>최종 답변</h4>
+          <p>도구 호출 없으면 텍스트 반환</p>
+        </div>
+      </div>
+      <div class="loop-back">↩ 도구 호출이 있으면 2번으로 돌아가 반복 (최대 10회)</div>
+    </div>
+
+    <!-- Right: detail cards -->
+    <div class="loop-detail">
+      <div class="detail-card active" id="ld0">
+        <h3>① 초기 컨텍스트 구성</h3>
+        <p style="color:var(--text-muted); margin-bottom: 1rem;">에이전트가 시작될 때 첫 번째로 하는 일입니다. 사용자가 제공한 SQL 쿼리와 EXPLAIN 결과를 Gemini에게 전달할 형태로 포장합니다.</p>
+        <pre><span class="cm"># run_agent() 시작 부분</span>
+<span class="var">contents</span> = [
+  <span class="fn">types</span>.<span class="fn">Content</span>(
+    role=<span class="str">"user"</span>,
+    parts=[<span class="fn">types</span>.<span class="fn">Part</span>(text=<span class="fn">f</span><span class="str">"""
+다음 SQL 쿼리와 실행 계획을 분석해주세요.
+
+SQL: {<span class="var">sql_query</span>}
+실행 계획: {<span class="var">explain_result</span>}
+    """</span>)]
+  )
+]</pre>
+        <div class="highlight-box">
+          <p><strong>포인트:</strong> <code>contents</code>는 Python 리스트입니다. 대화가 진행될수록 도구 호출과 결과가 계속 이 리스트에 추가됩니다. 이것이 에이전트의 "작업 기억(Working Memory)"입니다.</p>
+        </div>
+      </div>
+
+      <div class="detail-card" id="ld1">
+        <h3>② Gemini API 호출</h3>
+        <p style="color:var(--text-muted); margin-bottom: 1rem;">현재까지 누적된 대화 이력과 사용 가능한 도구 목록을 Gemini에게 전달합니다. Gemini는 이 정보를 바탕으로 다음 행동을 결정합니다.</p>
+        <pre><span class="var">config</span> = <span class="fn">types</span>.<span class="fn">GenerateContentConfig</span>(
+  tools=<span class="var">TOOL_FUNCTIONS</span>,  <span class="cm"># 4개 함수 자동 변환</span>
+  system_instruction=<span class="var">SYSTEM_PROMPT</span>
+)
+
+<span class="var">response</span> = <span class="var">client</span>.<span class="var">models</span>.<span class="fn">generate_content</span>(
+  model=<span class="str">"gemini-2.5-flash"</span>,
+  contents=<span class="var">contents</span>,   <span class="cm"># 누적된 대화 이력</span>
+  config=<span class="var">config</span>,
+)</pre>
+        <div class="highlight-box">
+          <p><strong>포인트:</strong> <code>tools=TOOL_FUNCTIONS</code>에 Python 함수를 직접 넘기면, Google GenAI SDK가 함수의 <strong>이름, docstring, 타입 힌트</strong>를 읽어 JSON 스키마로 자동 변환합니다.</p>
+        </div>
+      </div>
+
+      <div class="detail-card" id="ld2">
+        <h3>③ 응답 분석 — 분기점</h3>
+        <p style="color:var(--text-muted); margin-bottom: 1rem;">Gemini의 응답에서 <code>function_call</code>이 있는지 확인합니다. 이것이 루프를 계속할지, 최종 답변을 반환할지 결정하는 핵심 분기입니다.</p>
+        <pre><span class="var">candidate</span> = <span class="var">response</span>.<span class="var">candidates</span>[<span class="num">0</span>]
+<span class="var">contents</span>.<span class="fn">append</span>(<span class="var">candidate</span>.<span class="var">content</span>)  <span class="cm"># 항상 누적</span>
+
+<span class="cm"># function_call 추출</span>
+<span class="var">fn_calls</span> = [
+  <span class="var">p</span>.<span class="var">function_call</span>
+  <span class="kw">for</span> <span class="var">p</span> <span class="kw">in</span> <span class="var">candidate</span>.<span class="var">content</span>.<span class="var">parts</span>
+  <span class="kw">if</span> <span class="var">p</span>.<span class="var">function_call</span>
+]
+
+<span class="kw">if not</span> <span class="var">fn_calls</span>:
+  <span class="cm"># 도구 필요 없음 → 최종 답변</span>
+  <span class="kw">return</span> <span class="str">""</span>.<span class="fn">join</span>(
+    <span class="var">p</span>.<span class="var">text</span> <span class="kw">for</span> <span class="var">p</span> <span class="kw">in</span> <span class="var">candidate</span>.<span class="var">content</span>.<span class="var">parts</span>
+    <span class="kw">if</span> <span class="var">p</span>.<span class="var">text</span>
+  )</pre>
+      </div>
+
+      <div class="detail-card" id="ld3">
+        <h3>④ 도구 실행</h3>
+        <p style="color:var(--text-muted); margin-bottom: 1rem;">Gemini가 요청한 함수를 TOOL_MAP을 통해 찾아서 실제로 실행합니다.</p>
+        <pre><span class="cm"># TOOL_MAP: 함수 이름 → 실제 함수 객체</span>
+<span class="var">TOOL_MAP</span> = {
+  <span class="var">fn</span>.__name__: <span class="var">fn</span>
+  <span class="kw">for</span> <span class="var">fn</span> <span class="kw">in</span> <span class="var">TOOL_FUNCTIONS</span>
+}
+
+<span class="var">fn_response_parts</span> = []
+<span class="kw">for</span> <span class="var">fc</span> <span class="kw">in</span> <span class="var">fn_calls</span>:
+  <span class="var">fn</span> = <span class="var">TOOL_MAP</span>.<span class="fn">get</span>(<span class="var">fc</span>.<span class="var">name</span>)
+  <span class="var">result</span> = <span class="fn">fn</span>(**<span class="fn">dict</span>(<span class="var">fc</span>.<span class="var">args</span>))
+
+  <span class="var">fn_response_parts</span>.<span class="fn">append</span>(
+    <span class="fn">types</span>.<span class="fn">Part</span>.<span class="fn">from_function_response</span>(
+      name=<span class="var">fc</span>.<span class="var">name</span>,
+      response={<span class="str">"result"</span>: <span class="var">result</span>}
+    )
+  )</pre>
+        <div class="highlight-box">
+          <p><strong>포인트:</strong> 예를 들어 Gemini가 <code>get_schema("orders")</code>를 요청하면, <code>TOOL_MAP["get_schema"]("orders")</code>가 실행되어 SQLite에서 orders 테이블의 컬럼 구조를 가져옵니다.</p>
+        </div>
+      </div>
+
+      <div class="detail-card" id="ld4">
+        <h3>⑤ 결과 누적</h3>
+        <p style="color:var(--text-muted); margin-bottom: 1rem;">도구 실행 결과를 <code>contents</code>에 추가합니다. 다음 루프에서 Gemini는 이 결과를 참조하여 추가 추론을 수행합니다.</p>
+        <pre><span class="cm"># 도구 결과를 대화 이력에 추가</span>
+<span class="var">contents</span>.<span class="fn">append</span>(
+  <span class="fn">types</span>.<span class="fn">Content</span>(
+    role=<span class="str">"user"</span>,
+    parts=<span class="var">fn_response_parts</span>
+  )
+)
+<span class="cm"># → 다음 루프에서 Gemini가 이 결과를 참조</span></pre>
+        <div class="highlight-box">
+          <p><strong>누적되는 contents 구조:</strong><br/>
+          [사용자 질문] → [Gemini 응답 + function_call] → [도구 결과] → [Gemini 응답 + function_call] → [도구 결과] → ... → [최종 답변]</p>
+        </div>
+      </div>
+
+      <div class="detail-card" id="ld5">
+        <h3>⑥ 최종 답변 생성</h3>
+        <p style="color:var(--text-muted); margin-bottom: 1rem;">Gemini가 충분한 정보를 수집했다고 판단하면, 더 이상 function_call을 포함하지 않고 텍스트 답변만 생성합니다. 이때 루프가 종료됩니다.</p>
+        <pre><span class="cm"># Gemini가 반환한 최종 텍스트 수집</span>
+<span class="kw">if not</span> <span class="var">fn_calls</span>:
+  <span class="kw">return</span> <span class="str">""</span>.<span class="fn">join</span>(
+    <span class="var">p</span>.<span class="var">text</span>
+    <span class="kw">for</span> <span class="var">p</span> <span class="kw">in</span> <span class="var">candidate</span>.<span class="var">content</span>.<span class="var">parts</span>
+    <span class="kw">if</span> <span class="var">p</span>.<span class="var">text</span>
+  )</pre>
+        <p style="color:var(--text-muted); margin-top: 1rem;">최종 출력 예시:</p>
+        <pre style="background: rgba(63,185,80,.08); border-color: var(--accent2); color: #e6edf3; font-size: .78rem;">## 현재 쿼리의 문제점
+1. orders 테이블 전체 스캔(SCAN) 발생
+2. customers 테이블도 인덱스 없이 조회됨
+
+## 제안하는 인덱스
+CREATE INDEX idx_orders_customer_status
+  ON orders(customer_id, status);
+
+CREATE INDEX idx_customers_region
+  ON customers(region);
+
+## 예상 성능 개선
+현재 10,000건 전체 스캔 → 수십 건으로 범위 축소
+약 100배 이상 성능 향상 예상</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────── -->
+<!-- 5. TOOLS -->
+<!-- ────────────────────────────────────────────── -->
+<section id="tools">
+  <h2><span class="num">05</span>도구(Tool) 시스템</h2>
+  <p class="sub">에이전트가 사용할 수 있는 4개의 도구와 각각의 역할</p>
+
+  <div class="tool-grid">
+    <div class="tool-card">
+      <div class="tool-name">🗂️ get_all_tables()</div>
+      <div class="tool-desc">데이터베이스에 존재하는 모든 테이블 이름을 조회합니다. Gemini가 가장 먼저 호출하는 도구입니다.</div>
+      <div class="tool-sql">SELECT name FROM sqlite_master WHERE type='table'</div>
+    </div>
+    <div class="tool-card">
+      <div class="tool-name">📋 get_schema(table_name)</div>
+      <div class="tool-desc">특정 테이블의 컬럼 구조(이름, 타입, NOT NULL, 기본값)를 조회합니다.</div>
+      <div class="tool-sql">PRAGMA table_info(table_name)</div>
+    </div>
+    <div class="tool-card">
+      <div class="tool-name">🔍 get_indexes(table_name)</div>
+      <div class="tool-desc">특정 테이블에 존재하는 인덱스 목록을 조회합니다. 최적화 제안의 핵심 정보입니다.</div>
+      <div class="tool-sql">PRAGMA index_list(table_name)</div>
+    </div>
+    <div class="tool-card">
+      <div class="tool-name">📊 get_table_stats(table_name)</div>
+      <div class="tool-desc">테이블의 행 개수를 조회합니다. 대용량 테이블 여부를 판단하는 데 활용됩니다.</div>
+      <div class="tool-sql">SELECT COUNT(*) FROM table_name</div>
+    </div>
+  </div>
+
+  <div style="margin-top: 2rem;">
+    <h3 style="margin-bottom: 1rem;">도구 등록 방식 — Python 함수 → JSON 스키마 자동 변환</h3>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+      <div>
+        <p style="color: var(--text-muted); font-size: .875rem; margin-bottom: .75rem;">코드에서 이렇게 등록하면 →</p>
+        <pre><span class="kw">def</span> <span class="fn">get_schema</span>(<span class="var">table_name</span>: <span class="fn">str</span>) -> <span class="fn">str</span>:
+  <span class="str">"""특정 테이블의 컬럼 구조를 반환합니다."""</span>
+  ...
+
+<span class="var">TOOL_FUNCTIONS</span> = [
+  <span class="var">get_all_tables</span>,
+  <span class="var">get_schema</span>,
+  <span class="var">get_indexes</span>,
+  <span class="var">get_table_stats</span>,
+]
+
+<span class="var">config</span> = <span class="fn">types</span>.<span class="fn">GenerateContentConfig</span>(
+  tools=<span class="var">TOOL_FUNCTIONS</span>
+)</pre>
+      </div>
+      <div>
+        <p style="color: var(--text-muted); font-size: .875rem; margin-bottom: .75rem;">SDK가 자동으로 이렇게 변환 →</p>
+        <pre>{
+  <span class="str">"name"</span>: <span class="str">"get_schema"</span>,
+  <span class="str">"description"</span>: <span class="str">"특정 테이블의
+    컬럼 구조를 반환합니다."</span>,
+  <span class="str">"parameters"</span>: {
+    <span class="str">"type"</span>: <span class="str">"object"</span>,
+    <span class="str">"properties"</span>: {
+      <span class="str">"table_name"</span>: {
+        <span class="str">"type"</span>: <span class="str">"string"</span>
+      }
+    },
+    <span class="str">"required"</span>: [<span class="str">"table_name"</span>]
+  }
+}</pre>
+      </div>
+    </div>
+    <div class="highlight-box" style="margin-top: 1rem;">
+      <p><strong>중요:</strong> 함수의 <code>docstring</code>이 Gemini에게 전달되는 도구 설명이 됩니다. Gemini는 이 설명을 읽고 언제 이 도구를 사용할지 스스로 판단합니다. 좋은 docstring이 에이전트의 품질을 결정합니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────── -->
+<!-- 6. EXAMPLE WALKTHROUGH -->
+<!-- ────────────────────────────────────────────── -->
+<section id="example">
+  <h2><span class="num">06</span>동작 예시 — 단계별 워크스루</h2>
+  <p class="sub">실제 쿼리를 입력했을 때 에이전트 내부에서 일어나는 일들을 순서대로 추적합니다.</p>
+
+  <!-- Input query -->
+  <div style="margin-bottom: 2rem;">
+    <h3 style="margin-bottom: .75rem;">입력 쿼리 (최적화 전)</h3>
+    <pre><span class="kw">SELECT</span> <span class="var">c</span>.name, <span class="fn">COUNT</span>(<span class="var">o</span>.id) <span class="kw">AS</span> order_count
+<span class="kw">FROM</span> customers <span class="var">c</span>
+<span class="kw">JOIN</span> orders <span class="var">o</span> <span class="kw">ON</span> <span class="var">c</span>.id = <span class="var">o</span>.customer_id
+<span class="kw">WHERE</span> <span class="var">c</span>.region = <span class="str">'Seoul'</span>
+  <span class="kw">AND</span> <span class="var">o</span>.status = <span class="str">'pending'</span>
+<span class="kw">GROUP BY</span> <span class="var">c</span>.id
+<span class="kw">ORDER BY</span> order_count <span class="kw">DESC</span>
+<span class="kw">LIMIT</span> <span class="num">10</span>;</pre>
+    <h3 style="margin-bottom: .75rem; margin-top: 1.25rem;">EXPLAIN QUERY PLAN 결과 (사람이 직접 실행)</h3>
+    <pre><span class="cm">QUERY PLAN</span>
+|--SCAN orders          <span class="cm">← 10,000건 전체 스캔!</span>
+|--SEARCH customers USING INTEGER PRIMARY KEY (rowid=?)
+`--USE TEMP B-TREE FOR GROUP BY</pre>
+  </div>
+
+  <!-- Walkthrough steps -->
+  <div class="walk-grid">
+    <div class="walk-step ws1">
+      <div class="ws-num">1</div>
+      <div>
+        <h3>사용자 입력 → run_agent() 호출</h3>
+        <p>SQL 쿼리와 EXPLAIN 결과를 run_agent()에 전달합니다. 이 두 값이 contents 리스트의 첫 번째 항목이 됩니다.</p>
+        <pre><span class="var">result</span> = <span class="fn">run_agent</span>(
+  sql_query=<span class="var">test_query</span>,
+  explain_result=<span class="var">test_explain</span>
+)</pre>
+      </div>
+    </div>
+
+    <div class="walk-step ws2">
+      <div class="ws-num">2</div>
+      <div>
+        <h3>루프 1회 — Gemini: "테이블 목록이 필요해"</h3>
+        <p>Gemini는 쿼리에 등장하는 테이블이 DB에 실제로 존재하는지 확인하려 합니다. <code>get_all_tables</code>를 호출합니다.</p>
+        <pre><span class="cm"># Gemini → function_call</span>
+{
+  <span class="str">"name"</span>: <span class="str">"get_all_tables"</span>,
+  <span class="str">"args"</span>: {}
+}
+
+<span class="cm"># 실행 결과</span>
+[<span class="str">"customers"</span>, <span class="str">"products"</span>, <span class="str">"orders"</span>]</pre>
+      </div>
+    </div>
+
+    <div class="walk-step ws3">
+      <div class="ws-num">3</div>
+      <div>
+        <h3>루프 2회 — Gemini: "orders 스키마가 필요해"</h3>
+        <p>EXPLAIN에서 SCAN orders가 있으니 orders 테이블의 컬럼 구조와 인덱스를 확인합니다.</p>
+        <pre><span class="cm"># Gemini → function_call (병렬 호출 가능)</span>
+{<span class="str">"name"</span>: <span class="str">"get_schema"</span>, <span class="str">"args"</span>: {<span class="str">"table_name"</span>: <span class="str">"orders"</span>}}
+{<span class="str">"name"</span>: <span class="str">"get_indexes"</span>, <span class="str">"args"</span>: {<span class="str">"table_name"</span>: <span class="str">"orders"</span>}}
+
+<span class="cm"># get_schema 결과</span>
+[{cid:0, name:"id", type:"INTEGER", pk:1},
+ {cid:1, name:"customer_id", type:"INTEGER"},
+ {cid:2, name:"product_id", type:"INTEGER"},
+ {cid:3, name:"quantity", type:"INTEGER"},
+ {cid:4, name:"status", type:"TEXT"},    <span class="cm">← WHERE 조건</span>
+ {cid:5, name:"ordered_at", type:"TEXT"}]
+
+<span class="cm"># get_indexes 결과</span>
+[]  <span class="cm">← 인덱스 없음! 문제 발견</span></pre>
+      </div>
+    </div>
+
+    <div class="walk-step ws4">
+      <div class="ws-num">4</div>
+      <div>
+        <h3>루프 3회 — Gemini: "customers도 확인해야겠어"</h3>
+        <p>customers 테이블의 region 컬럼도 WHERE 조건에 포함되어 있으므로 해당 인덱스도 확인합니다.</p>
+        <pre><span class="cm"># Gemini → function_call</span>
+{<span class="str">"name"</span>: <span class="str">"get_schema"</span>, <span class="str">"args"</span>: {<span class="str">"table_name"</span>: <span class="str">"customers"</span>}}
+{<span class="str">"name"</span>: <span class="str">"get_indexes"</span>, <span class="str">"args"</span>: {<span class="str">"table_name"</span>: <span class="str">"customers"</span>}}
+{<span class="str">"name"</span>: <span class="str">"get_table_stats"</span>, <span class="str">"args"</span>: {<span class="str">"table_name"</span>: <span class="str">"orders"</span>}}
+
+<span class="cm"># 통계 결과</span>
+{"table": "orders", "row_count": <span class="num">10000</span>}  <span class="cm">← 대용량 확인</span></pre>
+      </div>
+    </div>
+
+    <div class="walk-step ws5">
+      <div class="ws-num">5</div>
+      <div>
+        <h3>루프 4회 — Gemini: "충분해, 답변 작성"</h3>
+        <p>필요한 정보가 모두 수집되었습니다. function_call 없이 텍스트 답변만 반환합니다. 루프가 종료됩니다.</p>
+        <pre><span class="cm"># Gemini 응답에 function_call 없음 → return</span></pre>
+      </div>
+    </div>
+
+    <div class="walk-step ws6">
+      <div class="ws-num">6</div>
+      <div>
+        <h3>최종 출력 — 한국어 최적화 제안</h3>
+        <p>Gemini가 생성한 구체적인 최적화 방안입니다.</p>
+        <pre style="background: rgba(63,185,80,.07); border-color: rgba(63,185,80,.3); font-size:.79rem;"><span class="cm">## 1. 현재 쿼리의 문제점</span>
+
+orders 테이블(10,000건)에서 인덱스 없이 전체 스캔(SCAN)이
+발생하고 있습니다. status = 'pending' 조건과
+customer_id = c.id JOIN 조건에 인덱스가 없어 매 조회마다
+10,000건을 모두 읽습니다.
+
+<span class="cm">## 2. 제안하는 인덱스</span>
+
+<span class="kw">-- orders: 복합 인덱스 (status 필터 + customer_id JOIN)</span>
+CREATE INDEX idx_orders_status_customer
+  ON orders(status, customer_id);
+
+<span class="kw">-- customers: region 필터 인덱스</span>
+CREATE INDEX idx_customers_region
+  ON customers(region);
+
+<span class="cm">## 3. 예상 성능 개선</span>
+
+status = 'pending' 비율이 ~20%라면:
+  현재: 10,000건 스캔 → 개선 후: ~2,000건으로 축소
+  JOIN도 인덱스로 처리 → 추가 80% 향상 기대
+  전체 약 50~100배 성능 개선 예상</pre>
+      </div>
+    </div>
+
+    <div class="walk-step ws7">
+      <div class="ws-num">7</div>
+      <div>
+        <h3>contents 리스트 최종 구조</h3>
+        <p>루프가 끝난 뒤 contents에 누적된 대화 이력입니다. 이것이 에이전트의 전체 "사고 과정"입니다.</p>
+        <pre><span class="var">contents</span> = [
+  <span class="cm"># 1. 사용자 초기 입력</span>
+  Content(role=<span class="str">"user"</span>, parts=[<span class="str">"SQL + EXPLAIN"</span>]),
+  <span class="cm"># 2. Gemini: get_all_tables 호출</span>
+  Content(role=<span class="str">"model"</span>, parts=[function_call(get_all_tables)]),
+  <span class="cm"># 3. 도구 결과</span>
+  Content(role=<span class="str">"user"</span>, parts=[function_response(["customers","orders",...])]),
+  <span class="cm"># 4. Gemini: get_schema + get_indexes 호출</span>
+  Content(role=<span class="str">"model"</span>, parts=[function_call(...), function_call(...)]),
+  <span class="cm"># 5~8. 추가 도구 호출 및 결과...</span>
+  <span class="cm"># 9. Gemini 최종 텍스트 답변</span>
+  Content(role=<span class="str">"model"</span>, parts=[<span class="str">"## 현재 쿼리의 문제점..."</span>]),
+]</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────── -->
+<!-- 7. SUMMARY -->
+<!-- ────────────────────────────────────────────── -->
+<section id="summary">
+  <h2><span class="num">07</span>핵심 개념 정리</h2>
+  <p class="sub">이 프로젝트를 통해 배울 수 있는 에이전트의 핵심 패턴</p>
+
+  <div class="summary-grid" style="margin-bottom: 2rem;">
+    <div class="summary-cell">
+      <div class="big">🔄</div>
+      <div style="font-weight: 700; margin-bottom: .25rem;">최대 10회</div>
+      <div class="label">에이전트 루프 반복 횟수</div>
+    </div>
+    <div class="summary-cell">
+      <div class="big">🛠️</div>
+      <div style="font-weight: 700; margin-bottom: .25rem;">4개 도구</div>
+      <div class="label">agent.py 등록 도구 수</div>
+    </div>
+    <div class="summary-cell">
+      <div class="big">🗃️</div>
+      <div style="font-weight: 700; margin-bottom: .25rem;">메타데이터만</div>
+      <div class="label">실제 데이터 접근 없음</div>
+    </div>
+    <div class="summary-cell">
+      <div class="big">🇰🇷</div>
+      <div style="font-weight: 700; margin-bottom: .25rem;">한국어 출력</div>
+      <div class="label">시스템 프롬프트로 지정</div>
+    </div>
+    <div class="summary-cell">
+      <div class="big">🤖</div>
+      <div style="font-weight: 700; margin-bottom: .25rem;">자율 도구 선택</div>
+      <div class="label">Gemini가 스스로 결정</div>
+    </div>
+  </div>
+
+  <h3 style="margin-bottom: 1rem;">에이전트 패턴 비교표</h3>
+  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;">
+    <table>
+      <thead>
+        <tr>
+          <th>패턴</th>
+          <th>이 프로젝트에서</th>
+          <th>역할</th>
+          <th>위치</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Agent Loop</strong></td>
+          <td><code>for _ in range(10)</code></td>
+          <td>충분한 정보 수집 때까지 반복</td>
+          <td><span class="tag g">agent.py:run_agent()</span></td>
+        </tr>
+        <tr>
+          <td><strong>Tool Registration</strong></td>
+          <td><code>tools=TOOL_FUNCTIONS</code></td>
+          <td>SDK가 Python 함수 → JSON 스키마 변환</td>
+          <td><span class="tag b">agent.py:config</span></td>
+        </tr>
+        <tr>
+          <td><strong>Tool Dispatch</strong></td>
+          <td><code>TOOL_MAP[fc.name](**fc.args)</code></td>
+          <td>Gemini 요청 → 실제 함수 실행</td>
+          <td><span class="tag g">agent.py:run_agent()</span></td>
+        </tr>
+        <tr>
+          <td><strong>Context Accumulation</strong></td>
+          <td><code>contents.append(...)</code></td>
+          <td>대화 이력 누적 (에이전트의 기억)</td>
+          <td><span class="tag b">agent.py:contents</span></td>
+        </tr>
+        <tr>
+          <td><strong>Termination Condition</strong></td>
+          <td><code>if not fn_calls: return</code></td>
+          <td>도구 호출 없으면 종료</td>
+          <td><span class="tag g">agent.py:run_agent()</span></td>
+        </tr>
+        <tr>
+          <td><strong>System Prompt</strong></td>
+          <td><code>SYSTEM_PROMPT</code></td>
+          <td>에이전트의 역할·목표 정의</td>
+          <td><span class="tag p">agent.py:상단</span></td>
+        </tr>
+        <tr>
+          <td><strong>Rate Limit Handling</strong></td>
+          <td>429 → 60초 대기 + 5회 재시도</td>
+          <td>API 속도 제한 자동 복구</td>
+          <td><span class="tag b">agent.py:run_agent()</span></td>
+        </tr>
+        <tr>
+          <td><strong>MCP Server</strong></td>
+          <td><code>FastMCP + @mcp.tool()</code></td>
+          <td>Claude Code에서 도구 직접 사용</td>
+          <td><span class="tag p">mcp_server.py</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  SQL Optimizer Agent — 에이전트 학습 프로젝트 &nbsp;·&nbsp; Gemini 2.5 Flash + Google GenAI SDK &nbsp;·&nbsp; 2026
+</footer>
+
+<script>
+  function selectStep(idx) {
+    // deactivate all
+    for (let i = 0; i < 6; i++) {
+      document.getElementById('ls' + i).classList.remove('active');
+      document.getElementById('ld' + i).classList.remove('active');
+    }
+    document.getElementById('ls' + idx).classList.add('active');
+    document.getElementById('ld' + idx).classList.add('active');
+  }
+</script>
+</body>
+</html>
