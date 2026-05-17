@@ -18,7 +18,7 @@ SQL 쿼리와 실행 계획을 입력하면 AI(Gemini 2.5 Flash)가 스스로 DB
 ### 1. 저장소 클론
 
 ```bash
-git clone <저장소-URL>
+git clone https://github.com/adslhdsl/SQL-OPTIMIZER.git
 cd sql-optimizer
 ```
 
